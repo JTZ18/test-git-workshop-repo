@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Singapore BTO Completion Map</title>
+<meta name="description" content="Explore HDB public housing projects under construction in Singapore and filter them by estimated completion year." />
+<link rel="preconnect" href="https://unpkg.com" />
+<link rel="preconnect" href="https://tile.openstreetmap.org" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ3yn6jMZq6n07mIkkkiL0Y9rE7n1pY=" crossorigin="" />
+<style>
+:root {
+--bg: #f5f7f9;
+--panel: #ffffff;
+--text: #111827;
+--muted: #667085;
+--border: #e4e7ec;
+--accent: #155eef;
+--accent-soft: #eff4ff;
+--danger: #b42318;
+--danger-soft: #fef3f2;
+--sidebar: 390px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--text); background: var(--bg); }
+button, input { font: inherit; }
+button { cursor: pointer; }
+.app-shell { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100vh; }
+.sidebar { background: var(--panel); border-right: 1px solid var(--border); padding: 24px; overflow-y: auto; max-height: 100vh; z-index: 2; }
+.brand-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.eyebrow { margin: 0 0 5px; text-transform: uppercase; letter-spacing: .08em; font-size: 11px; font-weight: 700; color: var(--muted); }
+h1 { margin: 0; font-size: 27px; line-height: 1.15; letter-spacing: -.03em; }
+.live-badge { flex: 0 0 auto; border: 1px solid #abefc6; background: #ecfdf3; color: #067647; border-radius: 999px; padding: 5px 9px; font-weight: 700; font-size: 11px; }
+.intro { color: var(--muted); font-size: 14px; line-height: 1.55; margin: 14px 0 22px; }
+.field-label, .filter-heading, .list-heading { font-size: 12px; font-weight: 700; color: #344054; }
+.text-input { width: 100%; border: 1px solid #d0d5dd; border-radius: 10px; padding: 11px 12px; outline: none; background: white; color: var(--text); font-size: 14px; }
+.text-input:focus { border-color: #84adff; box-shadow: 0 0 0 3px var(--accent-soft); }
+.filter-block { margin-top: 22px; }
+.filter-heading, .list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.link-button { appearance: none; border: 0; background: transparent; padding: 3px; color: var(--accent); font-size: 12px; }
+.chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid #d0d5dd; border-radius: 999px; padding: 7px 10px; background: white; color: #344054; font-size: 12px; font-weight: 700; }
+.chip:hover { background: #f9fafb; }
+.chip.active { border-color: #84adff; background: var(--accent-soft); color: #1849a9; }
+.stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 22px 0; }
+.stats-row > div { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: #fafafa; }
+.stats-row strong { display: block; font-size: 22px; letter-spacing: -.03em; }
+.stats-row span { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+.project-list { display: grid; gap: 8px; }
+.project-card { width: 100%; appearance: none; border: 1px solid var(--border); background: white; border-radius: 12px; padding: 11px 12px; text-align: left; transition: border-color .15s, background .15s; }
+.project-card:hover { border-color: #b2c6ff; background: #fbfcff; }
+.project-card-title { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 800; line-height: 1.35; }
+.project-card-meta { margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.year-pill { flex: 0 0 auto; border-radius: 999px; background: #f2f4f7; color: #475467; padding: 2px 7px; font-size: 10px; }
+.empty { color: var(--muted); font-size: 13px; padding: 16px 2px; }
+footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); color: #98a2b3; font-size: 10px; line-height: 1.5; }
+footer p { margin: 4px 0; }
+.map-panel { position: relative; min-width: 0; }
+#map { width: 100%; height: 100vh; background: #e9eef4; }
+.loading-card, .error-card { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 1000; max-width: min(520px, calc(100% - 32px)); border-radius: 10px; padding: 10px 14px; font-size: 12px; box-shadow: 0 4px 20px rgba(16,24,40,.12); }
+.loading-card { background: rgba(255,255,255,.95); border: 1px solid var(--border); }
+.error-card { background: var(--danger-soft); border: 1px solid #fecdca; color: var(--danger); }
+.legend { position: absolute; right: 14px; bottom: 24px; z-index: 900; padding: 10px 12px; background: rgba(255,255,255,.94); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 3px 16px rgba(16,24,40,.1); font-size: 11px; }
+.legend-row { display: flex; align-items: center; gap: 7px; margin: 5px 0; }
+.legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+.leaflet-popup-content { margin: 13px 15px; min-width: 220px; }
+.popup-title { font-size: 14px; font-weight: 800; margin-bottom: 7px; }
+.popup-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 9px; font-size: 11px; line-height: 1.45; }
+.popup-grid dt { color: #667085; }
+.popup-grid dd { margin: 0; color: #344054; font-weight: 650; }
+@media (max-width: 780px) {
+.app-shell { display: block; }
+.sidebar { max-height: none; border-right: 0; border-bottom: 1px solid var(--border); padding: 18px; }
+#map { height: 66vh; min-height: 500px; }
+.project-list { max-height: 280px; overflow-y: auto; }
+}
+</style>
+</head>
+<body>
+<main class="app-shell">
+<aside class="sidebar" aria-label="Project filters">
+<div class="brand-row">
+<div>
+<p class="eyebrow">Singapore public housing</p>
+<h1>BTO Completion Map</h1>
+</div>
+<span class="live-badge">HDB data</span>
+</div>
+<p class="intro">Explore HDB public-housing projects currently under construction and filter them by estimated completion year.</p>
+<label class="field-label" for="search">Project search</label>
+<input id="search" class="text-input" type="search" placeholder="e.g. Redhill, Dawson, Tengah…" autocomplete="off" />
+<div class="filter-block">
+<div class="filter-heading">
+<span>Completion year</span>
+<button id="clearYears" type="button" class="link-button">Clear</button>
+</div>
+<div id="yearFilters" class="chip-wrap" aria-live="polite"></div>
+</div>
+<div class="filter-block">
+<div class="filter-heading"><span>Quarter</span></div>
+<div id="quarterFilters" class="chip-wrap">
+<button class="chip" type="button" data-quarter="1">Q1</button>
+<button class="chip" type="button" data-quarter="2">Q2</button>
+<button class="chip" type="button" data-quarter="3">Q3</button>
+<button class="chip" type="button" data-quarter="4">Q4</button>
+</div>
+</div>
+<div class="stats-row">
+<div><strong id="visibleCount">–</strong><span>visible projects</span></div>
+<div><strong id="totalCount">–</strong><span>total projects</span></div>
+</div>
+<div class="list-heading">
+<span>Projects</span>
+<button id="resetAll" type="button" class="link-button">Reset filters</button>
+</div>
+<div id="projectList" class="project-list" aria-live="polite"></div>
+<footer>
+<p>Project boundaries and construction metadata: HDB via data.gov.sg.</p>
+<p>Basemap © OpenStreetMap contributors.</p>
+</footer>
+</aside>
+<section class="map-panel" aria-label="Map of HDB projects">
+<div id="loading" class="loading-card">Loading current HDB under-construction data…</div>
+<div id="map"></div>
+<div id="mapLegend" class="legend" aria-label="Map legend"></div>
+<div id="errorBox" class="error-card" hidden></div>
+</section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(() => {
+const DATASET_ID = 'd_930e662ac7e141fe3fd2a6efa5216902';
+const POLL_URL = `https://api-open.data.gov.sg/v1/public/api/datasets/${DATASET_ID}/poll-download`;
+const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([1.3521, 103.8198], 12);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+maxZoom: 19,
+attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+const els = {
+loading: document.getElementById('loading'),
+errorBox: document.getElementById('errorBox'),
+search: document.getElementById('search'),
+yearFilters: document.getElementById('yearFilters'),
+quarterFilters: document.getElementById('quarterFilters'),
+projectList: document.getElementById('projectList'),
+visibleCount: document.getElementById('visibleCount'),
+totalCount: document.getElementById('totalCount'),
+clearYears: document.getElementById('clearYears'),
+resetAll: document.getElementById('resetAll'),
+legend: document.getElementById('mapLegend')
+};
+let allFeatures = [];
+let geoLayer = null;
+const selectedYears = new Set();
+const selectedQuarters = new Set();
+const palette = ['#175cd3', '#039855', '#dc6803', '#7a5af8', '#c11574', '#087e8b', '#b54708', '#344054'];
+const yearColor = new Map();
+function parseCompletion(value) {
+const text = String(value || '').trim().toUpperCase();
+const yearMatch = text.match(/(20\d{2})/);
+const quarterMatch = text.match(/([1-4])Q|Q([1-4])/);
+const year = yearMatch ? Number(yearMatch[1]) : null;
+const quarter = quarterMatch ? Number(quarterMatch[1] || quarterMatch[2]) : null;
+return { year, quarter, raw: text || 'Unknown' };
+}
+function getProjectName(feature) {
+return String(feature?.properties?.NAME || 'Unnamed HDB project').trim();
+}
+function normalizeFeatures(geojson) {
+if (!geojson || !Array.isArray(geojson.features)) return [];
+return geojson.features.map(feature => {
+const completion = parseCompletion(feature?.properties?.ESTMT_CNSTRN_CMPLTN);
+return { ...feature, __completion: completion };
+});
+}
+function assignColors(features) {
+const years = [...new Set(features.map(f => f.__completion.year).filter(Boolean))].sort((a,b) => a-b);
+years.forEach((year, i) => yearColor.set(year, palette[i % palette.length]));
+return years;
+}
+function renderYearFilters(years) {
+els.yearFilters.innerHTML = '';
+years.forEach(year => {
+const btn = document.createElement('button');
+btn.type = 'button';
+btn.className = 'chip';
+btn.dataset.year = String(year);
+btn.textContent = String(year);
+btn.addEventListener('click', () => {
+if (selectedYears.has(year)) selectedYears.delete(year); else selectedYears.add(year);
+btn.classList.toggle('active', selectedYears.has(year));
+applyFilters();
+});
+els.yearFilters.appendChild(btn);
+});
+}
+function matchesFilters(feature) {
+const q = els.search.value.trim().toLowerCase();
+const name = getProjectName(feature).toLowerCase();
+const { year, quarter } = feature.__completion;
+const yearOk = selectedYears.size === 0 || selectedYears.has(year);
+const quarterOk = selectedQuarters.size === 0 || selectedQuarters.has(quarter);
+const searchOk = !q || name.includes(q);
+return yearOk && quarterOk && searchOk;
+}
+function popupHtml(feature) {
+const p = feature.properties || {};
+const completion = feature.__completion.raw;
+const commencement = p.ESTMT_CNSTRN_CMCMNT || 'Unknown';
+const contractor = p.CTRCTR_NAME || 'Not stated';
+const status = p.STATUS || 'Unknown';
+return `
+<div class="popup-title">${escapeHtml(getProjectName(feature))}</div>
+<dl class="popup-grid">
+<dt>Completion</dt><dd>${escapeHtml(completion)}</dd>
+<dt>Start</dt><dd>${escapeHtml(commencement)}</dd>
+<dt>Status</dt><dd>${escapeHtml(status)}</dd>
+<dt>Contractor</dt><dd>${escapeHtml(contractor)}</dd>
+</dl>`;
+}
+function escapeHtml(value) {
+return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+function drawFeatures(features) {
+if (geoLayer) geoLayer.remove();
+geoLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
+style: feature => {
+const year = feature.__completion?.year;
+const color = yearColor.get(year) || '#667085';
+return { color, weight: 1.5, opacity: .95, fillColor: color, fillOpacity: .36 };
+},
+onEachFeature: (feature, layer) => {
+layer.bindPopup(popupHtml(feature));
+layer.on('mouseover', () => layer.setStyle({ weight: 3, fillOpacity: .48 }));
+layer.on('mouseout', () => geoLayer?.resetStyle(layer));
+}
+}).addTo(map);
+}
+function renderList(features) {
+els.projectList.innerHTML = '';
+const sorted = [...features].sort((a,b) => {
+const ya = a.__completion.year ?? 9999, yb = b.__completion.year ?? 9999;
+if (ya !== yb) return ya - yb;
+const qa = a.__completion.quarter ?? 9, qb = b.__completion.quarter ?? 9;
+if (qa !== qb) return qa - qb;
+return getProjectName(a).localeCompare(getProjectName(b));
+});
+if (!sorted.length) {
+els.projectList.innerHTML = '<div class="empty">No projects match these filters.</div>';
+return;
+}
+sorted.forEach(feature => {
+const btn = document.createElement('button');
+btn.type = 'button';
+btn.className = 'project-card';
+const c = feature.__completion;
+btn.innerHTML = `
+<div class="project-card-title">
+<span>${escapeHtml(getProjectName(feature))}</span>
+<span class="year-pill">${escapeHtml(c.raw)}</span>
+</div>
+<div class="project-card-meta">${escapeHtml(feature.properties?.STATUS || 'HDB project')} · ${escapeHtml(feature.properties?.CTRCTR_NAME || 'Contractor not stated')}</div>`;
+btn.addEventListener('click', () => {
+const layer = findLayerForFeature(feature);
+if (layer) {
+const bounds = layer.getBounds();
+map.fitBounds(bounds.pad(.45), { maxZoom: 16 });
+layer.openPopup();
+}
+});
+els.projectList.appendChild(btn);
+});
+}
+function findLayerForFeature(target) {
+let found = null;
+geoLayer?.eachLayer(layer => {
+if (layer.feature?.properties?.OBJECTID === target.properties?.OBJECTID) found = layer;
+});
+return found;
+}
+function renderLegend(years) {
+els.legend.innerHTML = '<strong>Estimated completion</strong>';
+years.forEach(year => {
+const row = document.createElement('div');
+row.className = 'legend-row';
+row.innerHTML = `<span class="legend-swatch" style="background:${yearColor.get(year)}"></span><span>${year}</span>`;
+els.legend.appendChild(row);
+});
+}
+function applyFilters() {
+const filtered = allFeatures.filter(matchesFilters);
+drawFeatures(filtered);
+renderList(filtered);
+els.visibleCount.textContent = String(filtered.length);
+els.totalCount.textContent = String(allFeatures.length);
+}
+function resetFilters() {
+selectedYears.clear();
+selectedQuarters.clear();
+els.search.value = '';
+document.querySelectorAll('.chip.active').forEach(el => el.classList.remove('active'));
+applyFilters();
+}
+async function fetchFromOfficialSource() {
+try {
+const proxied = await fetch('/api/hdb', { headers: { accept: 'application/json' } });
+if (proxied.ok) return await proxied.json();
+} catch (_) {}
+const poll = await fetch(POLL_URL, { headers: { accept: 'application/json' } });
+if (!poll.ok) throw new Error(`data.gov.sg metadata request failed (${poll.status})`);
+const meta = await poll.json();
+const downloadUrl = meta?.data?.url;
+if (!downloadUrl) throw new Error('data.gov.sg did not return a GeoJSON download URL.');
+const response = await fetch(downloadUrl, { headers: { accept: 'application/json,application/geo+json' } });
+if (!response.ok) throw new Error(`GeoJSON download failed (${response.status})`);
+return await response.json();
+}
+function wireControls() {
+let debounce = null;
+els.search.addEventListener('input', () => {
+clearTimeout(debounce);
+debounce = setTimeout(applyFilters, 120);
+});
+els.clearYears.addEventListener('click', () => {
+selectedYears.clear();
+els.yearFilters.querySelectorAll('.chip').forEach(el => el.classList.remove('active'));
+applyFilters();
+});
+els.resetAll.addEventListener('click', resetFilters);
+els.quarterFilters.querySelectorAll('[data-quarter]').forEach(btn => {
+btn.addEventListener('click', () => {
+const q = Number(btn.dataset.quarter);
+if (selectedQuarters.has(q)) selectedQuarters.delete(q); else selectedQuarters.add(q);
+btn.classList.toggle('active', selectedQuarters.has(q));
+applyFilters();
+});
+});
+}
+async function init() {
+wireControls();
+try {
+const geojson = await fetchFromOfficialSource();
+allFeatures = normalizeFeatures(geojson);
+const years = assignColors(allFeatures);
+renderYearFilters(years);
+renderLegend(years);
+applyFilters();
+if (geoLayer?.getBounds()?.isValid()) map.fitBounds(geoLayer.getBounds(), { padding: [20, 20] });
+els.loading.hidden = true;
+} catch (error) {
+console.error(error);
+els.loading.hidden = true;
+els.errorBox.hidden = false;
+els.errorBox.textContent = `Could not load the live HDB dataset: ${error.message}`;
+}
+}
+init();
+})();
+</script>
+</body>
+</html>
